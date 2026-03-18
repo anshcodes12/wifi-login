@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="WiFi Login">
+<title>WiFi Login</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f; --card: #111118; --border: #1e1e2e;
+    --accent: #00f5a0; --accent2: #00d9ff;
+    --danger: #ff4d6d; --warn: #ffd166;
+    --text: #e8e8f0; --muted: #55556a;
+    --glow: rgba(0, 245, 160, 0.15);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+  html, body { height:100%; background:var(--bg); font-family:'JetBrains Mono',monospace; color:var(--text); overflow-x:hidden; }
+
+  body::before {
+    content:''; position:fixed; inset:0;
+    background-image: linear-gradient(rgba(0,245,160,0.03) 1px,transparent 1px), linear-gradient(90deg,rgba(0,245,160,0.03) 1px,transparent 1px);
+    background-size:40px 40px; animation:gridPan 20s linear infinite; pointer-events:none;
+  }
+  body::after {
+    content:''; position:fixed; top:-50%; left:-50%; width:200%; height:200%;
+    background: radial-gradient(ellipse at 60% 40%,rgba(0,245,160,0.06) 0%,transparent 60%), radial-gradient(ellipse at 30% 70%,rgba(0,217,255,0.04) 0%,transparent 50%);
+    pointer-events:none; animation:aurora 8s ease-in-out infinite alternate;
+  }
+  @keyframes gridPan { 100% { transform:translate(40px,40px); } }
+  @keyframes aurora  { 100% { transform:translate(20px,-20px) rotate(2deg); } }
+
+  .container { position:relative; z-index:1; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 20px; }
+
+  .signal-icon { width:56px; height:56px; margin-bottom:20px; position:relative; }
+  .signal-icon svg { width:100%; height:100%; }
+  .signal-bar { fill:none; stroke:var(--muted); stroke-width:2.5; stroke-linecap:round; transition:stroke 0.4s; }
+  .signal-bar.active { stroke:var(--accent); filter:drop-shadow(0 0 4px var(--accent)); }
+
+  @keyframes pulseRing { 100% { transform:scale(2); opacity:0; } }
+  .pulse-ring { position:absolute; inset:0; border-radius:50%; border:2px solid var(--accent); animation:pulseRing 1s ease-out infinite; display:none; }
+  .signal-icon.connected .pulse-ring { display:block; }
+
+  .card { width:100%; max-width:360px; background:var(--card); border:1px solid var(--border); border-radius:20px; padding:28px 24px; position:relative; overflow:hidden; }
+  .card::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--accent),transparent); opacity:0.5; }
+
+  .label { font-family:'Syne',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.15em; color:var(--accent); text-transform:uppercase; margin-bottom:6px; }
+  h1 { font-family:'Syne',sans-serif; font-size:26px; font-weight:800; line-height:1.1; margin-bottom:24px; }
+  h1 span { background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+
+  .field-group { display:flex; flex-direction:column; gap:12px; margin-bottom:20px; }
+  .field { display:flex; flex-direction:column; gap:6px; }
+  .field-label { font-size:10px; letter-spacing:0.12em; color:var(--muted); text-transform:uppercase; }
+  .field input { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:12px 14px; font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--text); outline:none; transition:border-color 0.2s,box-shadow 0.2s; }
+  .field input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--glow); }
+
+  .remember-row { display:flex; align-items:center; gap:10px; margin-bottom:20px; cursor:pointer; }
+  .remember-row input[type="checkbox"] { display:none; }
+  .toggle { width:38px; height:20px; background:var(--border); border-radius:10px; position:relative; transition:background 0.25s; flex-shrink:0; }
+  .toggle::after { content:''; position:absolute; width:14px; height:14px; background:var(--muted); border-radius:50%; top:3px; left:3px; transition:transform 0.25s,background 0.25s; }
+  .remember-row input:checked + .toggle { background:rgba(0,245,160,0.2); }
+  .remember-row input:checked + .toggle::after { transform:translateX(18px); background:var(--accent); }
+  .remember-text { font-size:12px; color:var(--muted); }
+
+  .btn-connect { width:100%; padding:16px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; border-radius:12px; font-family:'Syne',sans-serif; font-size:15px; font-weight:800; letter-spacing:0.05em; color:#0a0a0f; cursor:pointer; position:relative; overflow:hidden; transition:transform 0.15s,box-shadow 0.15s,opacity 0.15s; -webkit-appearance:none; }
+  .btn-connect:active { transform:scale(0.97); }
+  .btn-connect:not(:disabled):hover { box-shadow:0 0 30px rgba(0,245,160,0.35); }
+  .btn-connect:disabled { opacity:0.6; cursor:not-allowed; }
+  .btn-connect::after { content:''; position:absolute; top:-50%; left:-60%; width:40%; height:200%; background:rgba(255,255,255,0.25); transform:skewX(-20deg); transition:left 0.5s; }
+  .btn-connect:not(:disabled):hover::after { left:120%; }
+
+  .status { margin-top:16px; padding:12px 14px; border-radius:10px; font-size:12px; line-height:1.6; display:none; align-items:flex-start; gap:8px; border:1px solid transparent; animation:fadeIn 0.3s ease; }
+  .status.show { display:flex; }
+  .status.loading { background:rgba(0,217,255,0.07); border-color:rgba(0,217,255,0.2); color:var(--accent2); }
+  .status.success { background:rgba(0,245,160,0.07); border-color:rgba(0,245,160,0.2); color:var(--accent); }
+  .status.error   { background:rgba(255,77,109,0.07);  border-color:rgba(255,77,109,0.2);  color:var(--danger); }
+  .status.warn    { background:rgba(255,209,102,0.07); border-color:rgba(255,209,102,0.2); color:var(--warn); }
+  .status-icon { font-size:14px; flex-shrink:0; margin-top:2px; }
+  .status-text { flex:1; }
+
+  .spinner { width:14px; height:14px; border:2px solid rgba(0,217,255,0.3); border-top-color:var(--accent2); border-radius:50%; animation:spin 0.7s linear infinite; flex-shrink:0; margin-top:2px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+
+  .debug-toggle { margin-top:12px; width:100%; background:none; border:none; color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:10px; cursor:pointer; text-align:center; letter-spacing:0.08em; padding:4px; opacity:0.5; }
+  .debug-panel { display:none; margin-top:8px; background:rgba(0,0,0,0.4); border:1px solid var(--border); border-radius:10px; padding:12px; font-size:10px; color:var(--muted); line-height:1.8; max-height:160px; overflow-y:auto; word-break:break-all; }
+  .debug-panel.show { display:block; }
+  .dlog { color:var(--muted); }
+  .dlog.ok  { color:var(--accent); }
+  .dlog.err { color:var(--danger); }
+  .dlog.info{ color:var(--accent2); }
+
+  .mini-btn { display:inline-block; margin-top:8px; margin-right:6px; padding:6px 14px; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:11px; cursor:pointer; letter-spacing:0.05em; border:1px solid; text-decoration:none; }
+  .btn-warn { background:rgba(255,209,102,0.15); border-color:var(--warn); color:var(--warn); }
+  .btn-info { background:rgba(0,217,255,0.1); border-color:var(--accent2); color:var(--accent2); }
+
+  .tips { width:100%; max-width:360px; margin-top:16px; display:flex; flex-direction:column; gap:8px; }
+  .tip { display:flex; align-items:center; gap:10px; padding:10px 14px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:10px; font-size:11px; color:var(--muted); line-height:1.4; }
+</style>
+</head>
+<body>
+
+<iframe id="loginFrame" name="loginFrame" style="display:none;width:0;height:0;border:none;"></iframe>
+<form id="loginForm" method="POST" target="loginFrame" style="display:none;"></form>
+
+<div class="container">
+  <div class="signal-icon" id="signalIcon">
+    <div class="pulse-ring"></div>
+    <svg viewBox="0 0 56 56" fill="none">
+      <circle class="signal-bar active" cx="28" cy="38" r="3" fill="var(--accent)" stroke="none"/>
+      <path class="signal-bar" id="bar2" d="M20 30 Q28 22 36 30"/>
+      <path class="signal-bar" id="bar3" d="M13 23 Q28 8 43 23"/>
+      <path class="signal-bar" id="bar4" d="M6 16 Q28 -4 50 16"/>
+    </svg>
+  </div>
+
+  <div class="card">
+    <div class="label">ABES Internet Portal</div>
+    <h1>Connect to<br><span>WiFi</span></h1>
+
+    <div class="field-group">
+      <div class="field">
+        <div class="field-label">Username / Roll No</div>
+        <input type="text" id="username" placeholder="e.g. 2200xxxxx" autocomplete="username" autocapitalize="none" spellcheck="false">
+      </div>
+      <div class="field">
+        <div class="field-label">Password</div>
+        <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+    </div>
+
+    <label class="remember-row">
+      <input type="checkbox" id="rememberMe" checked>
+      <div class="toggle"></div>
+      <span class="remember-text">Remember credentials</span>
+    </label>
+
+    <button class="btn-connect" id="connectBtn" onclick="doLogin()">
+      <span class="btn-text">⚡ Connect Now</span>
+    </button>
+
+    <div class="status" id="statusBox">
+      <div class="status-icon" id="statusIcon"></div>
+      <div class="status-text" id="statusText"></div>
+    </div>
+
+    <button class="debug-toggle" id="debugToggle" onclick="toggleDebug()">▸ show debug log</button>
+    <div class="debug-panel" id="debugPanel"></div>
+  </div>
+
+  <div class="tips">
+    <div class="tip"><span style="font-size:13px">📱</span><span><strong style="color:var(--text)">Mobile:</strong> Browser menu → "Add to Home Screen"</span></div>
+    <div class="tip"><span style="font-size:13px">💻</span><span><strong style="color:var(--text)">Desktop:</strong> Bookmark or drag to taskbar</span></div>
+  </div>
+</div>
+
+<script>
+  const PORTAL_BASE = 'https://192.168.1.254:8090';
+  const PORTAL_PAGE = PORTAL_BASE + '/httpclient.html';
+
+  // All known Sophos/Cyberoam/generic captive portal field combos
+  const CANDIDATES = [
+    { u:'username',       p:'password'      },
+    { u:'httpd_username', p:'httpd_password' },
+    { u:'user',           p:'pass'           },
+    { u:'uname',          p:'psw'            },
+    { u:'userid',         p:'passwd'         },
+    { u:'loginid',        p:'password'       },
+  ];
+
+  const $ = id => document.getElementById(id);
+  let logs = [];
+
+  function log(msg, cls='') {
+    logs.push(`<div class="dlog ${cls}">${msg}</div>`);
+    $('debugPanel').innerHTML = logs.join('');
+    $('debugPanel').scrollTop = 99999;
+  }
+
+  function toggleDebug() {
+    $('debugPanel').classList.toggle('show');
+    $('debugToggle').textContent = $('debugPanel').classList.contains('show') ? '▾ hide debug log' : '▸ show debug log';
+  }
+
+  // Load saved creds
+  window.addEventListener('DOMContentLoaded', () => {
+    try {
+      $('username').value = localStorage.getItem('wl_u') || '';
+      $('password').value = atob(localStorage.getItem('wl_p') || '') || '';
+    } catch {}
+    [$('username'), $('password')].forEach(el =>
+      el.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); })
+    );
+  });
+
+  function saveCreds(u, p) { try { localStorage.setItem('wl_u', u); localStorage.setItem('wl_p', btoa(p)); } catch {} }
+  function clearCreds()    { try { localStorage.removeItem('wl_u'); localStorage.removeItem('wl_p'); } catch {} }
+
+  function showStatus(type, icon, msg) {
+    const box = $('statusBox');
+    box.className = 'status show ' + type;
+    $('statusIcon').innerHTML = type === 'loading' ? '<div class="spinner"></div>' : icon;
+    $('statusText').innerHTML = msg;
+  }
+
+  function animateSignal(on) {
+    ['bar2','bar3','bar4'].forEach((id, i) => setTimeout(() => {
+      const el = $(id);
+      if (!el) return;
+      el.classList.toggle('active', on);
+      el.style.stroke = on ? 'var(--accent)' : '';
+    }, i * 150));
+    $('signalIcon').classList.toggle('connected', on);
+  }
+
+  async function doLogin() {
+    const username = $('username').value.trim();
+    const password = $('password').value;
+    if (!username || !password) { showStatus('error','⚠️','Enter your username and password.'); return; }
+
+    const btn = $('connectBtn');
+    btn.disabled = true;
+    btn.querySelector('.btn-text').textContent = 'Connecting...';
+    animateSignal(false);
+    logs = [];
+
+    if ($('rememberMe').checked) saveCreds(username, password);
+    else clearCreds();
+
+    // ── Step 1: Try reading the portal to discover form fields ─────────────
+    let formAction = PORTAL_PAGE;
+    let discoveredU = null, discoveredP = null, extras = {};
+
+    showStatus('loading','','Reading portal page...');
+    log('Fetching portal: ' + PORTAL_PAGE, 'info');
+
+    try {
+      const r = await fetch(PORTAL_PAGE, { mode:'cors', credentials:'include' });
+      const html = await r.text();
+      log('Portal fetched (' + html.length + ' chars)', 'ok');
+
+      const doc  = new DOMParser().parseFromString(html, 'text/html');
+      const form = doc.querySelector('form');
+      if (form) {
+        const a = form.getAttribute('action') || '';
+        formAction = a ? (a.startsWith('http') ? a : PORTAL_BASE + '/' + a.replace(/^\//,'')) : PORTAL_PAGE;
+        log('Form action: ' + formAction, 'ok');
+
+        form.querySelectorAll('input').forEach(inp => {
+          const n=inp.name, t=(inp.type||'text').toLowerCase(), v=inp.value;
+          if (!n) return;
+          log('Field: name="'+n+'" type="'+t+'" val="'+(t==='password'?'***':v)+'"');
+          if (t==='password')                    discoveredP = n;
+          else if (t==='text'||t==='email')      discoveredU = n;
+          else if (t!=='submit'&&t!=='button')   extras[n]   = v;
+        });
+      } else {
+        log('No <form> tag found in HTML', 'err');
+      }
+    } catch(e) {
+      log('Could not fetch portal (CORS/cert): ' + e.message, 'err');
+    }
+
+    // ── Step 2: POST with discovered fields if found, else try all candidates
+    if (discoveredU && discoveredP) {
+      log('Using discovered: u="'+discoveredU+'" p="'+discoveredP+'"', 'ok');
+      showStatus('loading','','Sending login...');
+      const sent = await postLogin(formAction, username, password, discoveredU, discoveredP, extras);
+      await sleep(2500);
+      const online = await checkNet();
+      handleResult(online, btn);
+    } else {
+      log('Field discovery failed — trying ' + CANDIDATES.length + ' candidates', 'info');
+      showStatus('loading','','Trying login methods...');
+      let success = false;
+      for (const c of CANDIDATES) {
+        log('Trying u="'+c.u+'" p="'+c.p+'"');
+        await postLogin(formAction, username, password, c.u, c.p, {});
+        await sleep(2000);
+        const online = await checkNet();
+        if (online) {
+          log('SUCCESS with u="'+c.u+'"', 'ok');
+          handleResult(true, btn);
+          success = true;
+          break;
+        }
+        log('Not online with this combo', 'err');
+      }
+      if (!success) {
+        // Last resort: iframe form submit
+        log('Trying iframe fallback with first candidate...', 'info');
+        showStatus('loading','','Iframe fallback...');
+        iframeSubmit(formAction, username, password, CANDIDATES[0].u, CANDIDATES[0].p, {});
+        await sleep(4000);
+        const online = await checkNet();
+        handleResult(online, btn);
+      }
+    }
+  }
+
+  async function postLogin(action, user, pass, uF, pF, extra) {
+    const body = new URLSearchParams({...extra, [uF]:user, [pF]:pass});
+    log('POST ' + action, 'info');
+    try {
+      await fetch(action, {
+        method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body: body.toString(),
+        mode:'no-cors',
+        credentials:'include'
+      });
+      log('Fetch OK (opaque response)', 'ok');
+      return true;
+    } catch(e) {
+      log('Fetch error: '+e.message, 'err');
+      // Try iframe as backup for this attempt
+      iframeSubmit(action, user, pass, uF, pF, extra);
+      return false;
+    }
+  }
+
+  function iframeSubmit(action, user, pass, uF, pF, extra) {
+    const form = $('loginForm');
+    form.action = action;
+    form.innerHTML = '';
+    const add = (n,v) => { const i=document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; form.appendChild(i); };
+    Object.entries(extra).forEach(([k,v]) => add(k,v));
+    add(uF, user);
+    add(pF, pass);
+    log('iframe submit: action='+action+' uField='+uF, 'info');
+    form.submit();
+  }
+
+  function handleResult(online, btn) {
+    btn.disabled = false;
+    if (online) {
+      btn.querySelector('.btn-text').textContent = '✓ Connected';
+      animateSignal(true);
+      showStatus('success','✅','You\'re online! Login successful ✓');
+      setTimeout(() => { btn.querySelector('.btn-text').textContent = '⚡ Connect Now'; }, 5000);
+    } else {
+      btn.querySelector('.btn-text').textContent = '⚡ Connect Now';
+      showStatus('warn','⚠️',
+        'Login sent — tap below to verify, or check the debug log.<br>' +
+        '<button class="mini-btn btn-warn" onclick="manualCheck()">🌐 Test Internet</button>' +
+        '<a class="mini-btn btn-info" href="'+PORTAL_PAGE+'" target="_blank">🔗 Open Portal</a>'
+      );
+      // Auto-open debug so user can share logs
+      if (!$('debugPanel').classList.contains('show')) toggleDebug();
+    }
+  }
+
+  async function manualCheck() {
+    showStatus('loading','','Checking...');
+    await sleep(300);
+    const online = await checkNet();
+    if (online) {
+      animateSignal(true);
+      showStatus('success','✅','Connected! ✓');
+      log('Manual check: ONLINE', 'ok');
+    } else {
+      showStatus('error','❌',
+        'Still offline. <a href="'+PORTAL_PAGE+'" target="_blank" style="color:var(--accent2)">Open the portal</a>, log in manually, and share the error message here.'
+      );
+      log('Manual check: offline', 'err');
+    }
+  }
+
+  async function checkNet() {
+    const probes = [
+      'http://connectivitycheck.gstatic.com/generate_204',
+      'http://clients3.google.com/generate_204',
+      'http://www.msftconnecttest.com/connecttest.txt',
+    ];
+    for (const url of probes) {
+      try {
+        await fetch(url, {mode:'no-cors', cache:'no-store'});
+        log('Online probe OK: '+url, 'ok');
+        return true;
+      } catch { log('Probe failed: '+url, 'err'); }
+    }
+    return false;
+  }
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+</script>
+</body>
+</html>
